@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GTM Field Operations Hub - B2B</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 15px; background-color: #f4f6f9; margin: 0; color: #333; }
+        .form-card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-width: 450px; margin: auto; }
+        h2 { color: #28a745; text-align: center; margin-top: 0; margin-bottom: 5px; }
+        
+        /* Connectivity Indicator Styles */
+        .network-ribbon { display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: bold; padding: 6px; border-radius: 6px; margin-bottom: 15px; transition: all 0.3s ease; }
+        .network-ribbon.online { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .network-ribbon.offline { background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
+        .network-dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; }
+        .network-ribbon.online .network-dot { background-color: #28a745; animation: pulse 1.8s infinite; }
+        .network-ribbon.offline .network-dot { background-color: #ffc107; }
+        @keyframes pulse { 0% { transform: scale(0.9); opacity: 0.6; } 50% { transform: scale(1.2); opacity: 1; } 100% { transform: scale(0.9); opacity: 0.6; } }
+
+        label { display: block; margin: 10px 0 4px; font-weight: bold; font-size: 14px; }
+        input, select { width: 100%; padding: 11px; margin-bottom: 12px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 15px; }
+        input[readonly] { background-color: #e9ecef; color: #495057; cursor: not-allowed; }
+        .product-bucket { background: #e9ecef; padding: 12px; border-radius: 8px; margin-bottom: 15px; border: 1px dashed #6c757d; }
+        .btn-secondary { background: #6c757d; color: white; border: none; padding: 10px; border-radius: 6px; width: 100%; font-weight: bold; cursor: pointer; margin-bottom: 10px; }
+        .cart-table { width: 100%; margin-bottom: 15px; border-collapse: collapse; font-size: 14px; }
+        .cart-table th, .cart-table td { border-bottom: 1px solid #ddd; padding: 8px; text-align: left; }
+        .total-banner { background: #343a40; color: #fff; padding: 12px; border-radius: 6px; font-size: 18px; font-weight: bold; text-align: center; margin-bottom: 15px; }
+        .sync-status { font-size: 11px; text-align: center; margin-bottom: 10px; color: #6c757d; font-style: italic; }
+        .geo-status { background: #fff3cd; color: #856404; padding: 8px; border-radius: 6px; font-size: 12px; margin-bottom: 6px; text-align: center; font-weight: bold; border: 1px solid #ffeeba; }
+        .toggle-container { text-align: right; margin-bottom: 15px; }
+        .toggle-btn { background: none; border: none; color: #007bff; cursor: pointer; font-size: 13px; font-weight: bold; text-decoration: underline; padding: 0; }
+        button.submit-btn { width: 100%; padding: 15px; background-color: #28a745; color: white; border: none; border-radius: 6px; font-size: 18px; font-weight: bold; cursor: pointer; }
+        button.submit-btn:disabled { background: #ccc; }
+
+        /* Notification Modal Styles */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box; }
+        .modal-box { background: white; padding: 25px; border-radius: 12px; text-align: center; max-width: 340px; width: 100%; box-shadow: 0 10px 25px rgba(0,0,0,0.3); animation: scaleUp 0.25s ease-out; }
+        .modal-icon { font-size: 54px; margin-bottom: 12px; }
+        .modal-title { font-size: 20px; font-weight: bold; margin-bottom: 8px; }
+        .modal-msg { font-size: 14px; color: #555; margin-bottom: 20px; line-height: 1.4; }
+        .modal-close-btn { background: #333; color: white; border: none; padding: 10px 24px; border-radius: 6px; font-weight: bold; cursor: pointer; width: 100%; font-size: 15px; }
+        @keyframes scaleUp { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    </style>
+</head>
+<body>
+
+<div class="form-card">
+    <h2>Field Transaction Engine (B2B)</h2>
+    
+    <!-- Real-time Network Indicator -->
+    <div id="networkRibbon" class="network-ribbon online">
+        <div class="network-dot"></div>
+        <span id="networkStatusText">● Online (Uplink Ready)</span>
+    </div>
+
+    <div id="syncStatus" class="sync-status">Checking local product list cache...</div>
+    <div id="geoStatus" class="geo-status">📍 Acquiring GPS Location Address...</div>
+    
+    <div class="toggle-container">
+        <button type="button" class="toggle-btn" id="editGeoBtn" onclick="toggleManualGeo()">✏️ Edit Location Manually</button>
+    </div>
+    
+    <form id="gtmForm">
+        <label>Unique Agent ID Code</label>
+        <input type="text" id="agentCode" placeholder="ENTER CODE" required style="text-transform: uppercase;">
+
+        <label>Regional Hub (County / Sub-County)</label>
+        <input type="text" id="regionDisplay" readonly value="Detecting location..." required>
+        
+        <label>Market / Trading Center / Mall</label>
+        <input type="text" id="townDisplay" readonly value="Detecting location..." required>
+
+        <label>Business / Customer Identifier</label>
+        <input type="text" id="businessName" placeholder="Business Name or Customer Name" required>
+
+        <label>Mobile Number</label>
+        <input type="tel" id="phone" placeholder="e.g. 0712345678" required>
+
+        <div class="product-bucket">
+            <label style="color:#495057;">Select SKU / Bundle</label>
+            <select id="productDropdown">
+                <option value="">-- Loading Catalog --</option>
+            </select>
+            <label style="color:#495057;">Quantity</label>
+            <input type="number" id="productQty" value="1" min="1">
+            <button type="button" class="btn-secondary" onclick="addItemToCart()">➕ Add Item to Cart</button>
+        </div>
+
+        <table class="cart-table" id="cartTable">
+            <thead>
+                <tr><th>Product / Bundle</th><th>Qty</th><th>Subtotal</th></tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+
+        <div class="total-banner">Total: KES <span id="totalDisplay">0</span></div>
+
+        <label>Payment Terms</label>
+        <select id="payment" required>
+            <option value="Cash">Cash</option>
+            <option value="M-Pesa Till">M-Pesa Till</option>
+            <option value="Consignment">Consignment</option>
+        </select>
+
+        <input type="hidden" id="lat" value="0.0000">
+        <input type="hidden" id="lng" value="0.0000">
+        <button type="submit" class="submit-btn" id="submitBtn">Submit Transaction</button>
+    </form>
+</div>
+
+<!-- Global Success/Error Status Popup Modal -->
+<div id="statusModal" class="modal-overlay">
+    <div class="modal-box">
+        <div id="modalIcon" class="modal-icon"></div>
+        <div id="modalTitle" class="modal-title"></div>
+        <div id="modalMessage" class="modal-msg"></div>
+        <button type="button" class="modal-close-btn" onclick="closeStatusModal()">Dismiss</button>
+    </div>
+</div>
+
+<script>
+    const scriptUrl = "https://script.google.com/macros/s/AKfycbytAQqhMkiiV_myv_im0dRw3t0h70wrH3DKmjOEcA8CDL9Y_d8kMI4EsKJF1gfmNsIXig/exec";
+    
+    const commercialInfrastructureNodes = [
+        { id: "KE-NBI-001", name: "Wakulima Market (Marikiti)", county: "Nairobi", subcounty: "Kamukunji", lat: -1.2884, lng: 36.8322 },
+        { id: "KE-NBI-002", name: "Gikomba Market", county: "Nairobi", subcounty: "Kamukunji", lat: -1.2858, lng: 36.8406 },
+        { id: "KE-NBI-MT01", name: "Two Rivers Mall & Social City", county: "Nairobi", subcounty: "Westlands", lat: -1.2155, lng: 36.7912 },
+        { id: "KE-MSA-001", name: "Kongowea Market", county: "Mombasa", subcounty: "Nyali", lat: -4.0411, lng: 39.6853 },
+        { id: "KE-MSA-MT01", name: "City Mall Nyali", county: "Mombasa", subcounty: "Nyali", lat: -4.0182, lng: 39.7126 },
+        { id: "KE-KSM-MT01", name: "Mega City Mall Kisumu", county: "Kisumu", subcounty: "Kisumu Central", lat: -0.1014, lng: 34.7675 },
+        { id: "KE-NKR-MT01", name: "Westside Mall Nakuru", county: "Nakuru", subcounty: "Nakuru West", lat: -0.2889, lng: 36.0592 },
+        { id: "KE-NVS-MT01", name: "Buffalo Mall Naivasha", county: "Nakuru", subcounty: "Naivasha", lat: -0.7169, lng: 36.4251 },
+        { id: "KE-ELD-MT01", name: "Rupa's Mall Eldoret", county: "Uasin Gishu", subcounty: "Ainabkoi", lat: 0.5218, lng: 35.2903 },
+        { id: "KE-KMB-001", name: "Ruiru Main Market", county: "Kiambu", subcounty: "Ruiru", lat: -1.1472, lng: 36.9594 },
+        { id: "KE-KMB-MT02", name: "Ananas Mall Thika", county: "Kiambu", subcounty: "Thika Town", lat: -1.0396, lng: 37.0901 },
+        { id: "KE-NYI-001", name: "Karatina Open Market", county: "Nyeri", subcounty: "Mathira East", lat: -0.4819, lng: 37.1215 },
+        { id: "MER-MT01", name: "Meru Greenwood Mall", county: "Meru", subcounty: "Imenti North", lat: 0.0461, lng: 37.6498 },
+        { id: "KE-MKS-001", name: "Masaku Market", county: "Machakos", subcounty: "Machakos Central", lat: -1.5167, lng: 37.2667 }
+    ];
+
+    let dynamicNewZones = JSON.parse(localStorage.getItem('gtm_queued_zones')) || [];
+    let catalog = [];
+    let cart = [];
+    let isManualGeo = false;
+    let autoDismissTimer = null;
+
+    // Network Status Logic
+    function updateNetworkStatus() {
+        const ribbon = document.getElementById('networkRibbon');
+        const txt = document.getElementById('networkStatusText');
+        if (navigator.onLine) {
+            ribbon.className = "network-ribbon online";
+            txt.innerText = "● Online (Uplink Ready)";
+        } else {
+            ribbon.className = "network-ribbon offline";
+            txt.innerText = "● Offline Mode (Pending Link)";
+        }
+    }
+
+    window.onload = function() {
+        updateNetworkStatus();
+        window.addEventListener('online', updateNetworkStatus);
+        window.addEventListener('offline', updateNetworkStatus);
+
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(processPosition, handleGeoError, { enableHighAccuracy: true });
+        } else {
+            document.getElementById('geoStatus').innerText = "❌ GPS Unavailable.";
+            unlockGeoFieldsFallback();
+        }
+        if (localStorage.getItem('gtm_agent_code')) {
+            document.getElementById('agentCode').value = localStorage.getItem('gtm_agent_code');
+        }
+        
+        const cachedProducts = localStorage.getItem('gtm_product_catalog');
+        if (cachedProducts) {
+            catalog = JSON.parse(cachedProducts);
+            renderDropdown();
+        }
+        syncCatalogFromSheet();
+    };
+
+    function showStatusModal(isSuccess, title, message) {
+        clearTimeout(autoDismissTimer);
+        const modal = document.getElementById('statusModal');
+        const icon = document.getElementById('modalIcon');
+        const t = document.getElementById('modalTitle');
+        const msg = document.getElementById('modalMessage');
+
+        icon.innerText = isSuccess ? "✅" : "❌";
+        t.innerText = title;
+        t.style.color = isSuccess ? "#28a745" : "#dc3545";
+        msg.innerText = message;
+        modal.style.display = "flex";
+
+        if (isSuccess) {
+            autoDismissTimer = setTimeout(() => { closeStatusModal(); }, 3000);
+        }
+    }
+
+    function closeStatusModal() {
+        document.getElementById('statusModal').style.display = "none";
+    }
+
+    function calculateProximityDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+                  Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c; 
+    }
+
+    function processPosition(position) {
+        const currentLat = position.coords.latitude;
+        const currentLng = position.coords.longitude;
+        document.getElementById('lat').value = currentLat;
+        document.getElementById('lng').value = currentLng;
+
+        if (isManualGeo) return;
+
+        let bestMatch = null;
+        let shortestDistance = 0.250;
+
+        commercialInfrastructureNodes.forEach(node => {
+            let distance = calculateProximityDistance(currentLat, currentLng, node.lat, node.lng);
+            if (distance < shortestDistance) {
+                shortestDistance = distance;
+                bestMatch = node;
+            }
+        });
+
+        if (bestMatch) {
+            document.getElementById('regionDisplay').value = `${bestMatch.county} / ${bestMatch.subcounty}`;
+            document.getElementById('townDisplay').value = `${bestMatch.name} (${bestMatch.id})`;
+            
+            const geoBar = document.getElementById('geoStatus');
+            geoBar.innerText = `🎯 Linked to Infrastructure: ${bestMatch.id}`;
+            geoBar.style.backgroundColor = "#d4edda";
+            geoBar.style.color = "#155724";
+            geoBar.style.borderColor = "#c3e6cb";
+            return;
+        }
+
+        let queuedMatch = null;
+        dynamicNewZones.forEach(zone => {
+            let distance = calculateProximityDistance(currentLat, currentLng, zone.lat, zone.lng);
+            if (distance < shortestDistance) {
+                shortestDistance = distance;
+                queuedMatch = zone;
+            }
+        });
+
+        if (queuedMatch) {
+            document.getElementById('regionDisplay').value = queuedMatch.region;
+            document.getElementById('townDisplay').value = queuedMatch.town;
+            
+            const geoBar = document.getElementById('geoStatus');
+            geoBar.innerText = "⏳ Pulled from Local Queued Zones Pool";
+            geoBar.style.backgroundColor = "#e8f4fd";
+            geoBar.style.color = "#004085";
+            geoBar.style.borderColor = "#b8daff";
+            return;
+        }
+
+        const latTrunc = currentLat.toFixed(3);
+        const lngTrunc = currentLng.toFixed(3);
+        
+        fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${currentLat}&lon=${currentLng}`)
+            .then(res => res.json())
+            .then(data => {
+                if (isManualGeo) return;
+                const addr = data.address;
+                const county = addr.county || addr.region || "Nairobi";
+                const subcounty = addr.subdistrict || addr.district || "Unknown District";
+                const settlement = addr.town || addr.suburb || addr.neighbourhood || "New Area Node";
+
+                document.getElementById('regionDisplay').value = `${county} / ${subcounty}`;
+                document.getElementById('townDisplay').value = `${settlement} [NEW ZONE]`;
+                
+                const geoBar = document.getElementById('geoStatus');
+                geoBar.innerText = "✨ New Spot Detected! Ready to Queue.";
+                geoBar.style.backgroundColor = "#fff3cd";
+                geoBar.style.color = "#856404";
+                geoBar.style.borderColor = "#ffeeba";
+            })
+            .catch(() => {
+                if (!isManualGeo) {
+                    document.getElementById('regionDisplay').value = "Nairobi / Pending Verification";
+                    document.getElementById('townDisplay').value = `New Zone (${latTrunc}, ${lngTrunc})`;
+                }
+            });
+    }
+
+    function queueCurrentLocationState() {
+        const currentLat = parseFloat(document.getElementById('lat').value);
+        const currentLng = parseFloat(document.getElementById('lng').value);
+        const regionText = document.getElementById('regionDisplay').value.trim();
+        const townText = document.getElementById('townDisplay').value.trim();
+
+        if (currentLat === 0 && currentLng === 0) return;
+        if (!regionText || !townText) return;
+
+        let duplicate = false;
+        commercialInfrastructureNodes.forEach(n => {
+            if (calculateProximityDistance(currentLat, currentLng, n.lat, n.lng) < 0.200) duplicate = true;
+        });
+        dynamicNewZones.forEach(z => {
+            if (calculateProximityDistance(currentLat, currentLng, z.lat, z.lng) < 0.200) duplicate = true;
+        });
+
+        if (!duplicate) {
+            dynamicNewZones.push({ region: regionText, town: townText, lat: currentLat, lng: currentLng });
+            localStorage.setItem('gtm_queued_zones', JSON.stringify(dynamicNewZones));
+            console.log(`📌 Queued fresh temporary zone locally: ${townText}`);
+        }
+    }
+
+    function toggleManualGeo() {
+        const regionInput = document.getElementById('regionDisplay');
+        const townInput = document.getElementById('townDisplay');
+        const toggleBtn = document.getElementById('editGeoBtn');
+
+        if (regionInput.hasAttribute('readonly')) {
+            regionInput.removeAttribute('readonly');
+            townInput.removeAttribute('readonly');
+            regionInput.style.backgroundColor = "#fff";
+            townInput.style.backgroundColor = "#fff";
+            toggleBtn.innerText = "🔒 Save & Lock Fields";
+            isManualGeo = true;
+        } else {
+            regionInput.setAttribute('readonly', 'true');
+            townInput.setAttribute('readonly', 'true');
+            regionInput.style.backgroundColor = "#e9ecef";
+            townInput.style.backgroundColor = "#e9ecef";
+            toggleBtn.innerText = "✏️ Edit Location Manually";
+            queueCurrentLocationState();
+        }
+    }
+
+    function handleGeoError() {
+        document.getElementById('geoStatus').innerText = "⚠️ GPS Offline. Enter details manually.";
+        unlockGeoFieldsFallback();
+    }
+
+    function unlockGeoFieldsFallback() {
+        const regionInput = document.getElementById('regionDisplay');
+        const townInput = document.getElementById('townDisplay');
+        regionInput.removeAttribute('readonly');
+        townInput.removeAttribute('readonly');
+        regionInput.style.backgroundColor = "#fff";
+        townInput.style.backgroundColor = "#fff";
+        document.getElementById('editGeoBtn').style.display = "none";
+        isManualGeo = true;
+    }
+
+    function syncCatalogFromSheet() {
+        const script = document.createElement('script');
+        script.src = `${scriptUrl}?action=getProducts&callback=handleSheetCatalogSync`;
+        document.body.appendChild(script);
+    }
+
+    window.handleSheetCatalogSync = function(data) {
+        if (data && data.length > 0) {
+            catalog = data;
+            localStorage.setItem('gtm_product_catalog', JSON.stringify(data));
+            renderDropdown();
+            document.getElementById('syncStatus').innerText = "Catalog synced! ✓";
+            document.getElementById('syncStatus').style.color = "#28a745";
+        }
+    };
+
+    function renderDropdown() {
+        const dropdown = document.getElementById('productDropdown');
+        dropdown.innerHTML = '<option value="">-- Choose Product --</option>';
+        catalog.forEach((prod, index) => {
+            dropdown.innerHTML += `<option value="${index}">${prod.sku} (KES ${prod.price})</option>`;
+        });
+    }
+
+    function addItemToCart() {
+        const dropdown = document.getElementById('productDropdown');
+        const qtyInput = document.getElementById('productQty');
+        if (!dropdown.value) return alert("Select an item.");
+        const selectedProduct = catalog[dropdown.value];
+        const qty = parseInt(qtyInput.value);
+
+        const existingItem = cart.find(item => item.sku === selectedProduct.sku);
+        if (existingItem) {
+            existingItem.qty += qty;
+            existingItem.subtotal = existingItem.qty * selectedProduct.price;
+        } else {
+            cart.push({ sku: selectedProduct.sku, qty: qty, subtotal: qty * selectedProduct.price });
+        }
+        updateCartUI();
+    }
+
+    function updateCartUI() {
+        const tbody = document.querySelector('#cartTable tbody');
+        tbody.innerHTML = "";
+        let finalTotal = 0;
+        cart.forEach(item => {
+            finalTotal += item.subtotal;
+            tbody.innerHTML += `<tr><td>${item.sku}</td><td>${item.qty}</td><td>KES ${item.subtotal}</td></tr>`;
+        });
+        document.getElementById('totalDisplay').innerText = finalTotal;
+    }
+
+    document.getElementById('gtmForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        if (cart.length === 0) return alert("Cart is empty!");
+        
+        const submitBtn = document.getElementById('submitBtn');
+        submitBtn.innerText = "Syncing Sale...";
+        submitBtn.disabled = true;
+
+        const codeInput = document.getElementById('agentCode').value.trim().toUpperCase();
+        const cartSummary = cart.map(i => `${i.sku} (x${i.qty})`).join(", ");
+        const totalOrderValue = document.getElementById('totalDisplay').innerText;
+        const fullLocationString = `${document.getElementById('regionDisplay').value} -> ${document.getElementById('townDisplay').value}`;
+
+        const params = new URLSearchParams();
+        params.append("formType", "B2B");
+        params.append("agentCode", codeInput);
+        params.append("town", fullLocationString);
+        params.append("businessName", document.getElementById('businessName').value);
+        params.append("phone", document.getElementById('phone').value);
+        params.append("cartSummary", cartSummary);
+        params.append("totalOrderValue", totalOrderValue);
+        params.append("payment", document.getElementById('payment').value);
+        params.append("lat", document.getElementById('lat').value);
+        params.append("lng", document.getElementById('lng').value);
+
+        fetch(scriptUrl, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: params.toString()
+        })
+        .then(() => {
+            showStatusModal(true, "Transaction Synced", "B2B order data uploaded cleanly to Google Sheets backend.");
+            localStorage.setItem('gtm_agent_code', codeInput);
+            cart = [];
+            updateCartUI();
+            document.getElementById('businessName').value = "";
+            document.getElementById('phone').value = "";
+            submitBtn.innerText = "Submit Transaction";
+            submitBtn.disabled = false;
+        })
+        .catch(err => {
+            showStatusModal(false, "Sync Failure", "Unable to establish secure uplink. Double-check cellular settings or retry.");
+            submitBtn.innerText = "Submit Transaction";
+            submitBtn.disabled = false;
+        });
+    });
+</script>
+</body>
+</html>

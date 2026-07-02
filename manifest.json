@@ -1,0 +1,17 @@
+{
+  "short_name": "Field Engine",
+  "name": "GTM Field Operations Hub",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/8144/8144211.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "./index.html",
+  "background_color": "#0A0A0A",
+  "theme_color": "#0A0A0A",
+  "display": "standalone",
+  "orientation": "portrait"
+}
